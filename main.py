@@ -1,6 +1,5 @@
 import os
 import logging
-import urllib.parse
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -109,8 +108,7 @@ async def process_name(message: types.Message, state: FSMContext):
         keyboard=[
             [types.KeyboardButton(text="📱 Отправить номер телефона", request_contact=True)]
         ],
-        resize_keyboard=True,
-        one_time_keyboard=True
+        resize_keyboard=True, one_time_keyboard=True
     )
 
     await message.answer(
@@ -136,16 +134,14 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
 
-    # URL-кодируем значения, чтобы пробелы не ломали ссылку
-    sub1 = urllib.parse.quote(data['city'])
-    sub2 = urllib.parse.quote(str(data['age']))
-    sub3 = urllib.parse.quote(data['transport'])
-    sub4 = urllib.parse.quote(data['experience'])
-    sub5 = urllib.parse.quote(data['full_time'])
-
+    # Без кодирования — значения вставляем как есть
     tracking_link = (
         f"{BASE_TRACKING_LINK}"
-        f"&sub1={sub1}&sub2={sub2}&sub3={sub3}&sub4={sub4}&sub5={sub5}"
+        f"&sub1={data['city']}"
+        f"&sub2={data['age']}"
+        f"&sub3={data['transport']}"
+        f"&sub4={data['experience']}"
+        f"&sub5={data['full_time']}"
     )
 
     await message.answer(
