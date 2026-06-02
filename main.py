@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
+# ================= НАСТРОЙКИ =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "1043717905"))
 BASE_TRACKING_LINK = os.getenv(
@@ -18,6 +19,9 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = "/webhook"
 
 logging.basicConfig(level=logging.INFO)
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не задан в переменных окружения!")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -125,8 +129,13 @@ async def process_phone(message: types.Message, state: FSMContext):
     try:
         admin_text = (
             f"🆕 Новая заявка!\n"
-            f"Имя: {data['name']}\nТел: {phone}\nГород: {data['city']}\n"
-            f"Возраст: {data['age']}\nТранспорт: {data['transport']}\n"
+            f"Имя: {data['name']}\n"
+            f"Тел: {phone}\n"
+            f"Город: {data['city']}\n"
+            f"Возраст: {data['age']}\n"
+            f"Транспорт: {data['transport']}\n"
+            f"Опыт: {data['experience']}\n"
+            f"График: {data['full_time']}\n\n"
             f"Ссылка: {tracking_link}"
         )
         await bot.send_message(ADMIN_CHAT_ID, admin_text)
@@ -136,16 +145,19 @@ async def process_phone(message: types.Message, state: FSMContext):
     await state.clear()
 
 # ================= WEBHOOK =================
-async def on_startup(bot: Bot):
+async def on_startup(app: web.Application):
+    bot: Bot = app["bot"]
     if WEBHOOK_URL:
         await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
         logging.info(f"Webhook установлен: {WEBHOOK_URL}{WEBHOOK_PATH}")
 
-async def on_shutdown(bot: Bot):
+async def on_shutdown(app: web.Application):
+    bot: Bot = app["bot"]
     await bot.delete_webhook()
 
 def main():
     app = web.Application()
+    app["bot"] = bot
     setup_application(app, dp, bot=bot)
 
     handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
