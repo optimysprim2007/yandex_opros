@@ -14,7 +14,8 @@ BASE_TRACKING_LINK = os.getenv(
     "BASE_TRACKING_LINK",
     "https://trk.ppdu.ru/click?uid=107877&oid=2304&erid=CQH36pWzJqVGXC5oLP8WVVNCNqJmbhiUPijGiu4zpwPd7G&landingId=2489"
 )
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # ставим вручную в Railway
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = "/webhook"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -138,12 +139,10 @@ async def process_phone(message: types.Message, state: FSMContext):
 async def on_startup(bot: Bot):
     if WEBHOOK_URL:
         await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
-        logging.info(f"Webhook set: {WEBHOOK_URL}{WEBHOOK_PATH}")
+        logging.info(f"Webhook установлен: {WEBHOOK_URL}{WEBHOOK_PATH}")
 
 async def on_shutdown(bot: Bot):
     await bot.delete_webhook()
-
-WEBHOOK_PATH = "/webhook"
 
 def main():
     app = web.Application()
