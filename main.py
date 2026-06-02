@@ -37,18 +37,21 @@ class Questionnaire(StatesGroup):
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
-    await state.clear()                    # ← вот эта строка новая и важная
+    await state.clear()
     args = message.text.split()
     clickid = args[1] if len(args) > 1 else None
     await state.update_data(clickid=clickid)
 
-    await message.answer(
-        "Привет! 👋\n\n"
-        "Хочешь работать курьером в Яндекс Еда / Лавка?\n"
-        "Тогда ответь всего на 6 вопросов.\n\n"
-        "В каком городе ты живёшь?"
-    )
-    await state.set_state(Questionnaire.city)
+    try:
+        await message.answer(
+            "Привет! 👋\n\n"
+            "Хочешь работать курьером в Яндекс Еда / Лавка?\n"
+            "Тогда ответь всего на 6 вопросов.\n\n"
+            "В каком городе ты живёшь?"
+        )
+        await state.set_state(Questionnaire.city)
+    except Exception:
+        pass   # пользователь заблокировал бота
 
 @dp.message(Questionnaire.city)
 async def process_city(message: types.Message, state: FSMContext):
@@ -119,14 +122,11 @@ async def process_name(message: types.Message, state: FSMContext):
 
 @dp.message(Questionnaire.phone)
 async def process_phone(message: types.Message, state: FSMContext):
-    # Если нажал кнопку
     if message.contact:
         phone = message.contact.phone_number
     else:
-        # Если ввёл вручную
         phone = message.text.strip()
 
-    # Чистим номер
     phone = phone.replace("+", "").replace(" ", "").replace("-", "")
 
     if not phone.isdigit() or len(phone) != 11 or not phone.startswith("7"):
@@ -153,6 +153,7 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     logging.info(f"НОВАЯ ЗАЯВКА | {data['name']} | {phone} | {data['city']} | {data['age']}")
 
+    # Отправка уведомления админу с защитой
     try:
         admin_text = (
             f"🆕 Новая заявка!\n"
@@ -166,25 +167,19 @@ async def process_phone(message: types.Message, state: FSMContext):
             f"Ссылка: {tracking_link}"
         )
         await bot.send_message(ADMIN_CHAT_ID, admin_text)
-    except Exception as e:
-        logging.error(f"Ошибка отправки админу: {e}")
+    except Exception:
+        pass
 
     await state.clear()
 
-# ================= FALLBACK (ловит всё необработанное) =================
+# ================= FALLBACK =================
 @dp.message()
 async def fallback_handler(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
-    
     if current_state is not None:
-        # Если человек был в середине анкеты — сбрасываем
         await state.clear()
-        await message.answer(
-            "Что-то пошло не так. Давай начнём заново.\n"
-            "Напиши /start"
-        )
+        await message.answer("Что-то пошло не так. Напиши /start чтобы начать заново.")
     else:
-        # Если человек вообще не начинал
         await message.answer("Напиши /start чтобы начать оформление.")
 
 # ================= WEBHOOK =================
