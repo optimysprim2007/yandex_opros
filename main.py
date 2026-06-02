@@ -43,7 +43,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await message.answer(
         "Привет! 👋\n\n"
         "Хочешь работать курьером в Яндекс Еда / Лавка?\n"
-        "Ответь на 6 вопросов — данные уйдут в Пампаду.\n\n"
+        "Тогда ответь всего на 6 вопросов.\n\n"
         "В каком городе ты живёшь?"
     )
     await state.set_state(Questionnaire.city)
