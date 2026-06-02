@@ -98,14 +98,38 @@ async def process_full_time(message: types.Message, state: FSMContext):
 @dp.message(Questionnaire.name)
 async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text.strip())
-    await message.answer("Теперь отправь номер телефона в формате 7XXXXXXXXXX (только цифры)")
+
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[
+            [types.KeyboardButton(text="📱 Отправить номер телефона", request_contact=True)]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+    await message.answer(
+        "Теперь отправь номер телефона.\n\n"
+        "Можешь нажать кнопку ниже (отправится автоматически), "
+        "или просто напиши номер в формате 7XXXXXXXXXX",
+        reply_markup=kb
+    )
     await state.set_state(Questionnaire.phone)
 
 @dp.message(Questionnaire.phone)
 async def process_phone(message: types.Message, state: FSMContext):
-    phone = message.text.strip()
+    # Если нажал кнопку
+    if message.contact:
+        phone = message.contact.phone_number
+    else:
+        # Если ввёл вручную
+        phone = message.text.strip()
+
+    # Чистим номер
+    phone = phone.replace("+", "").replace(" ", "").replace("-", "")
+
     if not phone.isdigit() or len(phone) != 11 or not phone.startswith("7"):
-        return await message.answer("Номер в формате 7XXXXXXXXXX (11 цифр)")
+        await message.answer("Номер должен быть в формате 7XXXXXXXXXX (11 цифр). Попробуй ещё раз.")
+        return
 
     data = await state.get_data()
 
@@ -121,7 +145,8 @@ async def process_phone(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ Отлично, {data['name']}!\n\n"
         f"Вот твоя персональная ссылка:\n\n{tracking_link}\n\n"
-        f"Переходи и завершай регистрацию. Данные уже переданы в Пампаду."
+        f"Переходи и завершай регистрацию. Данные уже переданы менеджеру.",
+        reply_markup=types.ReplyKeyboardRemove()
     )
 
     logging.info(f"НОВАЯ ЗАЯВКА | {data['name']} | {phone} | {data['city']} | {data['age']}")
