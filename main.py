@@ -171,6 +171,22 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     await state.clear()
 
+# ================= FALLBACK (ловит всё необработанное) =================
+@dp.message()
+async def fallback_handler(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    
+    if current_state is not None:
+        # Если человек был в середине анкеты — сбрасываем
+        await state.clear()
+        await message.answer(
+            "Что-то пошло не так. Давай начнём заново.\n"
+            "Напиши /start"
+        )
+    else:
+        # Если человек вообще не начинал
+        await message.answer("Напиши /start чтобы начать оформление.")
+
 # ================= WEBHOOK =================
 async def on_startup(app: web.Application):
     bot: Bot = app["bot"]
