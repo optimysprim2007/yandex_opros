@@ -134,14 +134,19 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
 
-    # Без кодирования — значения вставляем как есть
+    # Заменяем пробелы на _, чтобы ссылка не ломалась
+    city = data['city'].replace(" ", "_")
+    transport = data['transport'].replace(" ", "_")
+    experience = data['experience'].replace(" ", "_")
+    full_time = data['full_time'].replace(" ", "_")
+
     tracking_link = (
         f"{BASE_TRACKING_LINK}"
-        f"&sub1={data['city']}"
+        f"&sub1={city}"
         f"&sub2={data['age']}"
-        f"&sub3={data['transport']}"
-        f"&sub4={data['experience']}"
-        f"&sub5={data['full_time']}"
+        f"&sub3={transport}"
+        f"&sub4={experience}"
+        f"&sub5={full_time}"
     )
 
     await message.answer(
