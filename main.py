@@ -37,9 +37,11 @@ class Questionnaire(StatesGroup):
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()                    # ← вот эта строка новая и важная
     args = message.text.split()
     clickid = args[1] if len(args) > 1 else None
     await state.update_data(clickid=clickid)
+
     await message.answer(
         "Привет! 👋\n\n"
         "Хочешь работать курьером в Яндекс Еда / Лавка?\n"
