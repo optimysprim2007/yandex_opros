@@ -38,6 +38,9 @@ class Questionnaire(StatesGroup):
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
+    # Принудительно сбрасываем все возможные состояния
+    await state.set_state(None)
+
     args = message.text.split()
     clickid = args[1] if len(args) > 1 else None
     await state.update_data(clickid=clickid)
@@ -51,7 +54,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         )
         await state.set_state(Questionnaire.city)
     except Exception:
-        pass   # пользователь заблокировал бота
+        pass
 
 @dp.message(Questionnaire.city)
 async def process_city(message: types.Message, state: FSMContext):
