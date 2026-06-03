@@ -8,28 +8,18 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-# ================= НАСТРОЙКИ =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "1043717905"))
-BASE_TRACKING_LINK = os.getenv(
-    "BASE_TRACKING_LINK",
-    "https://trk.ppdu.ru/click?uid=107877&oid=2304&erid=CQH36pWzJqVGXC5oLP8WVVNCNqJmbhiUPijGiu4zpwPd7G"
-)
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
+BASE_TRACKING_LINK = os.getenv("BASE_TRACKING_LINK", "https://trk.ppdu.ru/click?uid=107877&oid=2304")
 
 logging.basicConfig(level=logging.INFO)
-
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN не задан в переменных окружения!")
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 class Questionnaire(StatesGroup):
     city = State()
-    age = State()
     transport = State()
+    age = State()
     experience = State()
     full_time = State()
     name = State()
@@ -38,17 +28,8 @@ class Questionnaire(StatesGroup):
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
-    args = message.text.split()
-    clickid = args[1] if len(args) > 1 else None
-    await state.update_data(clickid=clickid)
-
     try:
-        await message.answer(
-            "Привет! 👋\n\n"
-            "Хочешь работать курьером в Яндекс Еда / Лавка?\n"
-            "Тогда ответь всего на 6 вопросов.\n\n"
-            "В каком городе ты живёшь?"
-        )
+        await message.answer("Привет! 👋\n\nХочешь работать курьером Яндекс.Еда / Лавка к партнёру?\nОтветь на несколько вопросов и получи персональную ссылку.")
         await state.set_state(Questionnaire.city)
     except Exception:
         pass
@@ -56,27 +37,40 @@ async def cmd_start(message: types.Message, state: FSMContext):
 @dp.message(Questionnaire.city)
 async def process_city(message: types.Message, state: FSMContext):
     await state.update_data(city=message.text.strip())
-    await message.answer("Сколько тебе лет? (только цифры)")
+    kb = types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text=t)] for t in ["Пеший", "Велосипед", "Авто"]],
+        resize_keyboard=True, one_time_keyboard=True
+    )
+    await message.answer("Какой транспорт планируешь использовать?", reply_markup=kb)
+    await state.set_state(Questionnaire.transport)
+
+@dp.message(Questionnaire.transport)
+async def process_transport(message: types.Message, state: FSMContext):
+    transport = message.text
+    await state.update_data(transport=transport)
+
+    if transport == "Авто":
+        await message.answer("Сколько тебе лет? (Автокурьеры — до 65 лет)")
+    else:
+        await message.answer("Сколько тебе лет? (Пеший и велокурьеры — до 55 лет)")
+    
     await state.set_state(Questionnaire.age)
 
 @dp.message(Questionnaire.age)
 async def process_age(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         return await message.answer("Напиши возраст цифрами.")
+    
     age = int(message.text)
-    if age < 18 or age > 70:
-        return await message.answer("Возраст от 18 до 70 лет.")
-    await state.update_data(age=age)
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=[[types.KeyboardButton(text=t)] for t in ["Пеший", "Велосипед", "Авто"]],
-        resize_keyboard=True, one_time_keyboard=True
-    )
-    await message.answer("Какой транспорт будешь использовать?", reply_markup=kb)
-    await state.set_state(Questionnaire.transport)
+    data = await state.get_data()
+    transport = data.get("transport")
 
-@dp.message(Questionnaire.transport)
-async def process_transport(message: types.Message, state: FSMContext):
-    await state.update_data(transport=message.text)
+    if transport == "Авто" and age > 65:
+        return await message.answer("Для автокурьеров максимальный возраст — 65 лет.")
+    if transport in ["Пеший", "Велосипед"] and age > 55:
+        return await message.answer("Для пеших и велокурьеров максимальный возраст — 55 лет.")
+
+    await state.update_data(age=age)
     kb = types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text=t)] for t in ["Да", "Нет"]],
         resize_keyboard=True, one_time_keyboard=True
@@ -103,60 +97,46 @@ async def process_full_time(message: types.Message, state: FSMContext):
 @dp.message(Questionnaire.name)
 async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text.strip())
-
     kb = types.ReplyKeyboardMarkup(
-        keyboard=[
-            [types.KeyboardButton(text="📱 Отправить номер телефона", request_contact=True)]
-        ],
+        keyboard=[[types.KeyboardButton(text="📱 Отправить номер телефона", request_contact=True)]],
         resize_keyboard=True, one_time_keyboard=True
     )
-
     await message.answer(
         "Теперь отправь номер телефона.\n\n"
-        "Можешь нажать кнопку ниже (отправится автоматически), "
-        "или просто напиши номер в формате 7XXXXXXXXXX",
+        "Можешь нажать кнопку ниже или написать вручную в формате 7XXXXXXXXXX",
         reply_markup=kb
     )
     await state.set_state(Questionnaire.phone)
 
 @dp.message(Questionnaire.phone)
 async def process_phone(message: types.Message, state: FSMContext):
-    if message.contact:
-        phone = message.contact.phone_number
-    else:
-        phone = message.text.strip()
-
+    phone = message.contact.phone_number if message.contact else message.text.strip()
     phone = phone.replace("+", "").replace(" ", "").replace("-", "")
 
     if not phone.isdigit() or len(phone) != 11 or not phone.startswith("7"):
-        await message.answer("Номер должен быть в формате 7XXXXXXXXXX (11 цифр). Попробуй ещё раз.")
+        await message.answer("Номер должен быть в формате 7XXXXXXXXXX. Попробуй ещё раз.")
         return
 
     data = await state.get_data()
 
-    # Заменяем пробелы на _, чтобы ссылка не ломалась
-    city = data['city'].replace(" ", "_")
-    transport = data['transport'].replace(" ", "_")
-    experience = data['experience'].replace(" ", "_")
-    full_time = data['full_time'].replace(" ", "_")
-
     tracking_link = (
         f"{BASE_TRACKING_LINK}"
-        f"&sub1={city}"
+        f"&sub1={data['city']}"
         f"&sub2={data['age']}"
-        f"&sub3={transport}"
-        f"&sub4={experience}"
-        f"&sub5={full_time}"
+        f"&sub3={data['transport']}"
+        f"&sub4={data['experience']}"
+        f"&sub5={data['full_time']}"
     )
 
     await message.answer(
         f"✅ Отлично, {data['name']}!\n\n"
         f"Вот твоя персональная ссылка:\n\n{tracking_link}\n\n"
-        f"Переходи и завершай регистрацию. Данные уже переданы менеджеру.",
+        f"Переходи по ссылке и завершай регистрацию. "
+        f"У тебя будет 7 дней на активацию. Выплаты ежедневные (для граждан РФ и ЕАЭС).",
         reply_markup=types.ReplyKeyboardRemove()
     )
 
-    logging.info(f"НОВАЯ ЗАЯВКА | {data['name']} | {phone} | {data['city']} | {data['age']}")
+    logging.info(f"НОВАЯ ЗАЯВКА | {data['name']} | {phone} | {data['city']} | {data['age']} | {data['transport']}")
 
     try:
         admin_text = (
@@ -176,7 +156,7 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-# ================= FALLBACK =================
+# Fallback + Webhook (оставил как было)
 @dp.message()
 async def fallback_handler(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
@@ -186,12 +166,10 @@ async def fallback_handler(message: types.Message, state: FSMContext):
     else:
         await message.answer("Напиши /start чтобы начать оформление.")
 
-# ================= WEBHOOK =================
 async def on_startup(app: web.Application):
     bot: Bot = app["bot"]
-    if WEBHOOK_URL:
-        await bot.set_webhook(f"{WEBHOOK_URL}{WEBHOOK_PATH}")
-        logging.info(f"Webhook установлен: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    if os.getenv("WEBHOOK_URL"):
+        await bot.set_webhook(f"{os.getenv('WEBHOOK_URL')}/webhook")
 
 async def on_shutdown(app: web.Application):
     bot: Bot = app["bot"]
@@ -201,13 +179,10 @@ def main():
     app = web.Application()
     app["bot"] = bot
     setup_application(app, dp, bot=bot)
-
     handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
-    handler.register(app, path=WEBHOOK_PATH)
-
+    handler.register(app, path="/webhook")
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
-
     port = int(os.getenv("PORT", 8080))
     web.run_app(app, host="0.0.0.0", port=port)
 
