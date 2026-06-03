@@ -29,7 +29,11 @@ class Questionnaire(StatesGroup):
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
     try:
-        await message.answer("Привет! 👋\n\nХочешь работать курьером Яндекс.Еда / Лавка к партнёру?\nОтветь на несколько вопросов и получи персональную ссылку.")
+        await message.answer(
+            "Привет! 👋\n\n"
+            "Хочешь работать курьером Яндекс.Еда / Лавка к партнёру?\n"
+            "Ответь на несколько вопросов и получи персональную ссылку."
+        )
         await state.set_state(Questionnaire.city)
     except Exception:
         pass
@@ -41,7 +45,7 @@ async def process_city(message: types.Message, state: FSMContext):
         keyboard=[[types.KeyboardButton(text=t)] for t in ["Пеший", "Велосипед", "Авто"]],
         resize_keyboard=True, one_time_keyboard=True
     )
-    await message.answer("Какой транспорт планируешь использовать?", reply_markup=kb)
+    await message.answer("В каком городе планируешь работать?", reply_markup=kb)
     await state.set_state(Questionnaire.transport)
 
 @dp.message(Questionnaire.transport)
