@@ -32,7 +32,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer(
             "Привет! 👋\n\n"
             "Хочешь работать курьером Яндекс.Еда / Лавка к партнёру?\n"
-            "Ответь на несколько вопросов и получи персональную ссылку."
+            "Ответь на несколько вопросов и получи персональную ссылку.\n\n"
+            "В каком городе планируешь работать?"
         )
         await state.set_state(Questionnaire.city)
     except Exception:
@@ -41,11 +42,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
 @dp.message(Questionnaire.city)
 async def process_city(message: types.Message, state: FSMContext):
     await state.update_data(city=message.text.strip())
+
     kb = types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text=t)] for t in ["Пеший", "Велосипед", "Авто"]],
         resize_keyboard=True, one_time_keyboard=True
     )
-    await message.answer("В каком городе планируешь работать?", reply_markup=kb)
+    await message.answer("Какой транспорт планируешь использовать?", reply_markup=kb)
     await state.set_state(Questionnaire.transport)
 
 @dp.message(Questionnaire.transport)
@@ -114,7 +116,11 @@ async def process_name(message: types.Message, state: FSMContext):
 
 @dp.message(Questionnaire.phone)
 async def process_phone(message: types.Message, state: FSMContext):
-    phone = message.contact.phone_number if message.contact else message.text.strip()
+    if message.contact:
+        phone = message.contact.phone_number
+    else:
+        phone = message.text.strip()
+
     phone = phone.replace("+", "").replace(" ", "").replace("-", "")
 
     if not phone.isdigit() or len(phone) != 11 or not phone.startswith("7"):
@@ -123,24 +129,29 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
 
+    # Заменяем пробелы на _ чтобы ссылка не ломалась
+    city = data['city'].replace(" ", "_")
+    transport = data['transport'].replace(" ", "_")
+    experience = data['experience'].replace(" ", "_")
+    full_time = data['full_time'].replace(" ", "_")
+
     tracking_link = (
         f"{BASE_TRACKING_LINK}"
-        f"&sub1={data['city']}"
+        f"&sub1={city}"
         f"&sub2={data['age']}"
-        f"&sub3={data['transport']}"
-        f"&sub4={data['experience']}"
-        f"&sub5={data['full_time']}"
+        f"&sub3={transport}"
+        f"&sub4={experience}"
+        f"&sub5={full_time}"
     )
 
     await message.answer(
         f"✅ Отлично, {data['name']}!\n\n"
         f"Вот твоя персональная ссылка:\n\n{tracking_link}\n\n"
-        f"Переходи по ссылке и завершай регистрацию. "
-        f"У тебя будет 7 дней на активацию. Выплаты ежедневные (для граждан РФ и ЕАЭС).",
+        f"Переходи по ссылке и завершай регистрацию. У тебя будет 7 дней на активацию. Выплаты ежедневные (для граждан РФ и ЕАЭС).",
         reply_markup=types.ReplyKeyboardRemove()
     )
 
-    logging.info(f"НОВАЯ ЗАЯВКА | {data['name']} | {phone} | {data['city']} | {data['age']} | {data['transport']}")
+    logging.info(f"НОВАЯ ЗАЯВКА | {data['name']} | {phone} | {data['city']} | {data['age']}")
 
     try:
         admin_text = (
